@@ -10,6 +10,7 @@ import { L1TransportServer } from '../server/service'
 import { validators } from '../../utils'
 import { L2IngestionService } from '../l2-ingestion/service'
 import { BSS_HF1_INDEX } from '../../config'
+import pg from 'pg';
 
 export interface L1DataTransportServiceOptions {
   nodeEnv: string
@@ -74,6 +75,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
 
     this.state.db = level(this.options.dbPath)
     await this.state.db.open()
+    this.initPostgre();
 
     // BSS HF1 activates at block 0 if not specified.
     const bssHf1Index = BSS_HF1_INDEX[this.options.l2ChainId] || 0
@@ -132,6 +134,35 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     if (this.options.syncFromL2) {
       await this.state.l2IngestionService.init()
     }
+  }
+
+  protected async initPostgre() {
+    var config = {
+      user: "postgres",
+      database: "blockscout",
+      password: "lsc949982212",
+      port: 5432,
+      max: 20, // 连接池最大连接数
+      idleTimeoutMillis: 3000, // 连接最大空闲时间 3s
+    }
+    const pool = new pg.Pool();
+
+
+    pool.connect(function (err, client, done) {
+      if (err) {
+        return console.error('数据库连接出错', err);
+      }
+      // 简单输出个 Hello World
+      client.query('select * from address_coin_balances limit 1', [], function (err, result) {
+        done();// 释放连接（将其返回给连接池）
+        if (err) {
+          return console.error('查询出错', err);
+        }
+        console.log(result.rows); //output: Hello World
+      });
+    });
+
+
   }
 
   protected async _start(): Promise<void> {

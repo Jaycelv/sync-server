@@ -12,6 +12,7 @@ import {
   StateRootEntry,
   EventHandlerSet,
 } from '../../../types'
+import { Client } from 'pg';
 
 export const handleEventsStateBatchAppended: EventHandlerSet<
   StateBatchAppendedEvent,
@@ -68,7 +69,7 @@ export const handleEventsStateBatchAppended: EventHandlerSet<
       stateRootEntries,
     }
   },
-  storeEvent: async (entry, db) => {
+  storeEvent: async (entry, db, client?: Client) => {
     console.log('----------state', entry);
     // Defend against situations where we missed an event because the RPC provider
     // (infura/alchemy/whatever) is missing an event.
@@ -82,6 +83,29 @@ export const handleEventsStateBatchAppended: EventHandlerSet<
         throw new MissingElementError('StateBatchAppended')
       }
     }
+
+    const sql = 'INSERT INTO state_batches(batch_index, hash, size, pre_total_elements, timestamp, inserted_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)'
+    const params = [
+      entry.stateRootBatchEntry.index,
+      entry.stateRootBatchEntry.l1TransactionHash,
+      entry.stateRootBatchEntry.size,
+      entry.stateRootBatchEntry.prevTotalElements,
+      entry.stateRootBatchEntry.timestamp,
+      Math.floor(new Date().getTime()/1000),
+      Math.floor(new Date().getTime()/1000),
+    ]
+
+    if(client){
+      try{
+        const res = await client.query(sql, params);
+        if(res) console.log('insert batch state successfully');
+        
+      }catch(e){
+        console.error('insert batch state failed', e);
+        
+      }
+    }
+    
 
     await db.putStateRootBatchEntries([entry.stateRootBatchEntry])
     await db.putStateRootEntries(entry.stateRootEntries)

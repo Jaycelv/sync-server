@@ -21,6 +21,7 @@ import {
 } from '../../utils'
 import { EventHandlerSet } from '../../types'
 import { L1DataTransportServiceOptions } from '../main/service'
+import { Client } from 'pg';
 
 interface L1IngestionMetrics {
   highestSyncedL1Block: Gauge<string>
@@ -100,12 +101,22 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     contracts: MantleContracts
     l1RpcProvider: BaseProvider
     startingL1BlockNumber: number
+    client: Client
   } = {} as any
 
   protected async _init(): Promise<void> {
     this.state.db = new TransportDB(this.options.db, {
       l2ChainId: this.options.l2ChainId,
     })
+
+    const client = new Client()
+    await client.connect().catch(e => {
+      console.error(e);
+      throw new Error(
+        `Initialize PostgreSQL failed`
+      )
+    })
+    this.state.client = client;
 
     this.l1IngestionMetrics = registerMetrics(this.metrics)
 
@@ -416,7 +427,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
             extraData,
             this.options.l2ChainId
           )
-          await handlers.storeEvent(parsedEvent, this.state.db)
+          await handlers.storeEvent(parsedEvent, this.state.db, this.state.client)
         }
 
         const tock = Date.now()
